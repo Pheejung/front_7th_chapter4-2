@@ -17,7 +17,7 @@ import { Schedule } from "./types.ts";
 import { fill2, parseHnM } from "./utils.ts";
 import { useDndContext, useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { ComponentProps, Fragment } from "react";
+import React, { ComponentProps, Fragment, useCallback } from "react";
 
 interface Props {
   tableId: string;
@@ -40,13 +40,16 @@ const TIMES = [
 
 const ScheduleTable = ({ tableId, schedules, onScheduleTimeClick, onDeleteButtonClick }: Props) => {
 
-  const getColor = (lectureId: string): string => {
+  const dndContext = useDndContext();
+  const { active } = dndContext;
+  const isDragging = !!active;
+
+  const getColor = useCallback((lectureId: string): string => {
+    if (isDragging) return '#ccc'; // 드래그 중 간단한 색상
     const lectures = [...new Set(schedules.map(({ lecture }) => lecture.id))];
     const colors = ["#fdd", "#ffd", "#dff", "#ddf", "#fdf", "#dfd"];
     return colors[lectures.indexOf(lectureId) % colors.length];
-  };
-
-  const dndContext = useDndContext();
+  }, [schedules, isDragging]);
 
   const getActiveTableId = () => {
     const activeId = dndContext.active?.id;
@@ -113,7 +116,7 @@ const ScheduleTable = ({ tableId, schedules, onScheduleTimeClick, onDeleteButton
 
       {schedules.map((schedule, index) => (
         <DraggableSchedule
-          key={`${schedule.lecture.title}-${index}`}
+          key={`${schedule.lecture.id}-${index}`}
           id={`${tableId}:${index}`}
           data={schedule}
           bg={getColor(schedule.lecture.id)}
@@ -177,4 +180,4 @@ const DraggableSchedule = ({
   );
 }
 
-export default ScheduleTable;
+export default React.memo(ScheduleTable);

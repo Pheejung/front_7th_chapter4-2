@@ -2,7 +2,7 @@ import { Button, ButtonGroup, Flex, Heading, Stack } from "@chakra-ui/react";
 import ScheduleTable from "./ScheduleTable.tsx";
 import { useScheduleContext } from "./ScheduleContext.tsx";
 import SearchDialog from "./SearchDialog.tsx";
-import { useState } from "react";
+import React, { useCallback, useState } from "react";
 
 export const ScheduleTables = () => {
   const { schedulesMap, setSchedulesMap } = useScheduleContext();
@@ -14,19 +14,19 @@ export const ScheduleTables = () => {
 
   const disabledRemoveButton = Object.keys(schedulesMap).length === 1;
 
-  const duplicate = (targetId: string) => {
+  const duplicate = useCallback((targetId: string) => {
     setSchedulesMap(prev => ({
       ...prev,
       [`schedule-${Date.now()}`]: [...prev[targetId]]
     }))
-  };
+  }, [setSchedulesMap]);
 
-  const remove = (targetId: string) => {
+  const remove = useCallback((targetId: string) => {
     setSchedulesMap(prev => {
       delete prev[targetId];
       return { ...prev };
     })
-  };
+  }, [setSchedulesMap]);
 
   return (
     <>
@@ -59,3 +59,5 @@ export const ScheduleTables = () => {
     </>
   );
 }
+
+export default React.memo(ScheduleTables);

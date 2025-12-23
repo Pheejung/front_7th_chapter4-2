@@ -28,3 +28,51 @@ export const parseSchedule = (schedule: string) => {
     return { day, range, room };
   });
 };
+
+import { Lecture } from "./types.ts";
+
+interface SearchOption {
+  query?: string,
+  grades: number[],
+  days: string[],
+  times: number[],
+  majors: string[],
+  credits?: number,
+}
+
+export const filterLectures = (lectures: Lecture[], searchOptions: SearchOption) => {
+  const { query = '', credits, grades, days, times, majors } = searchOptions;
+  return lectures.filter(lecture => {
+    // Query filter
+    if (query && !lecture.title.toLowerCase().includes(query.toLowerCase()) && !lecture.id.toLowerCase().includes(query.toLowerCase())) {
+      return false;
+    }
+    // Grades filter
+    if (grades.length > 0 && !grades.includes(lecture.grade)) {
+      return false;
+    }
+    // Majors filter
+    if (majors.length > 0 && !majors.includes(lecture.major)) {
+      return false;
+    }
+    // Credits filter
+    if (credits && !lecture.credits.startsWith(String(credits))) {
+      return false;
+    }
+    // Days filter
+    if (days.length > 0) {
+      const schedules = lecture.schedule ? parseSchedule(lecture.schedule) : [];
+      if (!schedules.some(s => days.includes(s.day))) {
+        return false;
+      }
+    }
+    // Times filter
+    if (times.length > 0) {
+      const schedules = lecture.schedule ? parseSchedule(lecture.schedule) : [];
+      if (!schedules.some(s => s.range.some(time => times.includes(time)))) {
+        return false;
+      }
+    }
+    return true;
+  });
+};
