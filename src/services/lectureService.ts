@@ -11,11 +11,24 @@ export const fetchAllLectures = async (): Promise<Lecture[]> => {
   // import.meta.env.BASE_URL은 vite.config.ts의 base 설정을 반영합니다
   const baseUrl = import.meta.env.BASE_URL;
   
+  const startTime = performance.now();
+  console.log('API 호출 시작: ', startTime);
+  
   // Promise.all을 사용하여 두 JSON 파일을 병렬로 fetch
-  const [majorsResponse, liberalArtsResponse] = await Promise.all([
-    fetch(`${baseUrl}schedules-majors.json`),
-    fetch(`${baseUrl}schedules-liberal-arts.json`)
-  ]);
+  const fetchPromises = [
+    fetch(`${baseUrl}schedules-majors.json`).then(response => {
+      console.log('API Call 1', performance.now());
+      return response;
+    }),
+    fetch(`${baseUrl}schedules-liberal-arts.json`).then(response => {
+      console.log('API Call 2', performance.now());
+      return response;
+    })
+  ];
+  
+  const [majorsResponse, liberalArtsResponse] = await Promise.all(fetchPromises);
+  
+  console.log('API Call 3', performance.now());
 
   // 404 오류 체크
   if (!majorsResponse.ok) {
@@ -26,10 +39,22 @@ export const fetchAllLectures = async (): Promise<Lecture[]> => {
   }
 
   const [majorsData, liberalArtsData] = await Promise.all([
-    majorsResponse.json() as Promise<Lecture[]>,
-    liberalArtsResponse.json() as Promise<Lecture[]>
+    majorsResponse.json().then(data => {
+      console.log('API Call 4', performance.now());
+      return data as Lecture[];
+    }),
+    liberalArtsResponse.json().then(data => {
+      console.log('API Call 5', performance.now());
+      return data as Lecture[];
+    })
   ]);
 
+  console.log('API Call 6', performance.now());
   cachedLectures = [...majorsData, ...liberalArtsData];
+  
+  const endTime = performance.now();
+  console.log('모든 API 호출 완료 ', endTime);
+  console.log('API 호출에 걸린 시간(ms): ', endTime - startTime);
+  
   return cachedLectures;
 };
