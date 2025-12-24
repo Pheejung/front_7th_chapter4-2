@@ -1,7 +1,12 @@
-import { DndContext, Modifier, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
-import React, { PropsWithChildren, useCallback } from "react";
+import { DndContext, Modifier, PointerSensor, useSensor, useSensors, DragEndEvent, DragStartEvent } from "@dnd-kit/core";
+import React, { PropsWithChildren, useCallback, useMemo, useState } from "react";
 import { CellSize, DAY_LABELS } from "./constants.ts";
-import { useScheduleContext } from "./ScheduleContext.tsx";
+import { useScheduleSetAction } from "./ScheduleContext.tsx";
+
+// 드래그 중인 테이블 ID를 관리하는 Context
+const ActiveTableIdContext = React.createContext<string | null>(null);
+
+export const useActiveTableId = () => React.useContext(ActiveTableIdContext);
 
 function createSnapModifier(): Modifier {
   return ({ transform, containerNodeRect, draggingNodeRect }) => {
@@ -29,7 +34,10 @@ function createSnapModifier(): Modifier {
 const modifiers = [createSnapModifier()]
 
 const ScheduleDndProvider = ({ children }: PropsWithChildren) => {
-  const { schedulesMap, setSchedulesMap } = useScheduleContext();
+  // setSchedulesMap만 필요하므로 별도 Context 사용하여 불필요한 리렌더링 방지
+  const setSchedulesMap = useScheduleSetAction();
+  const [activeTableId, setActiveTableId] = useState<string | null>(null);
+  
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -38,35 +46,86 @@ const ScheduleDndProvider = ({ children }: PropsWithChildren) => {
     })
   );
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const handleDragEnd = useCallback((event: any) => {
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    const activeId = String(event.active.id);
+    const [tableId] = activeId.split(':');
+    setActiveTableId(tableId);
+  }, []);
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    setActiveTableId(null);
     const { active, delta } = event;
     const { x, y } = delta;
-    const [tableId, index] = active.id.split(':');
-    const schedule = schedulesMap[tableId][index];
-    const nowDayIndex = DAY_LABELS.indexOf(schedule.day as typeof DAY_LABELS[number])
+    
+    // 드래그가 없으면 무시
+    if (x === 0 && y === 0) return;
+    
+    const activeId = String(active.id);
+    const [tableId, index] = activeId.split(':');
+    
+    if (!tableId || index === undefined) return;
+    
     const moveDayIndex = Math.floor(x / 80);
     const moveTimeIndex = Math.floor(y / 30);
 
-    setSchedulesMap(prev => ({
-      ...prev,
-      [tableId]: prev[tableId].map((targetSchedule, targetIndex) => {
+    // 이동이 없으면 무시
+    if (moveDayIndex === 0 && moveTimeIndex === 0) return;
+
+    setSchedulesMap(prev => {
+      const schedule = prev[tableId]?.[Number(index)];
+      if (!schedule) return prev;
+
+      const nowDayIndex = DAY_LABELS.indexOf(schedule.day as typeof DAY_LABELS[number]);
+      const newDayIndex = Math.max(0, Math.min(DAY_LABELS.length - 1, nowDayIndex + moveDayIndex));
+      const newRange = schedule.range.map(time => Math.max(1, Math.min(24, time + moveTimeIndex)));
+      
+      // 실제로 변경이 없으면 이전 상태 반환 (리렌더링 방지)
+      if (newDayIndex === nowDayIndex && 
+          schedule.range.length === newRange.length &&
+          schedule.range.every((time, idx) => time === newRange[idx])) {
+        return prev;
+      }
+
+      // 변경된 스케줄만 새 객체로 생성
+      const updatedSchedule = {
+        ...schedule,
+        day: DAY_LABELS[newDayIndex],
+        range: newRange,
+      };
+
+      // 변경된 테이블의 배열만 새로 생성하고, 다른 테이블은 참조 유지
+      // 변경되지 않은 스케줄은 참조를 유지하여 해당 테이블만 리렌더링되도록 함
+      const updatedSchedules = prev[tableId].map((targetSchedule, targetIndex) => {
         if (targetIndex !== Number(index)) {
-          return { ...targetSchedule }
+          return targetSchedule; // 변경되지 않은 스케줄은 참조 유지
         }
-        return {
-          ...targetSchedule,
-          day: DAY_LABELS[nowDayIndex + moveDayIndex],
-          range: targetSchedule.range.map(time => time + moveTimeIndex),
-        }
-      })
-    }));
-  }, [schedulesMap, setSchedulesMap]);
+        return updatedSchedule; // 변경된 스케줄만 새 객체
+      });
+
+      return {
+        ...prev,
+        [tableId]: updatedSchedules,
+      };
+    });
+  }, [setSchedulesMap]);
+
+  // Context value를 메모이제이션하여 불필요한 리렌더링 방지
+  const contextValue = useMemo(() => activeTableId, [activeTableId]);
 
   return (
-    <DndContext sensors={sensors} onDragEnd={handleDragEnd} modifiers={modifiers}>
-      {children}
-    </DndContext>
+    <ActiveTableIdContext.Provider value={contextValue}>
+      <DndContext 
+        sensors={sensors} 
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        onDragCancel={() => setActiveTableId(null)}
+        modifiers={modifiers}
+        // 드래그 중 리렌더링 최소화를 위한 설정
+        autoScroll={{ threshold: { x: 0.2, y: 0.2 } }}
+      >
+        {children}
+      </DndContext>
+    </ActiveTableIdContext.Provider>
   );
 }
 

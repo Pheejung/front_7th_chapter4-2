@@ -12,5 +12,10 @@ interface SearchOption {
 }
 
 export const useFilteredLectures = (lectures: Lecture[], searchOptions: SearchOption) => {
-  return useMemo(() => filterLectures(lectures, searchOptions), [lectures, searchOptions]);
+  // searchOptions 객체 전체를 의존성으로 사용
+  // setSearchOptions(prev => ({ ...prev, [field]: value }))는 새 객체를 생성하므로
+  // searchOptions의 참조가 변경되어 useMemo가 재계산됨
+  return useMemo(() => {
+    return filterLectures(lectures, searchOptions);
+  }, [lectures, searchOptions]);
 };

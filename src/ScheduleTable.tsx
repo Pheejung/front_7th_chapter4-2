@@ -8,9 +8,30 @@ import {
 import { CellSize, DAY_LABELS, 분 } from "./constants.ts";
 import { Schedule } from "./types.ts";
 import { fill2, parseHnM } from "./utils.ts";
-import { useDndContext } from "@dnd-kit/core";
 import React, { Fragment, useCallback, useMemo } from "react";
+import { useActiveTableId } from "./ScheduleDndProvider.tsx";
 import DraggableSchedule from "./DraggableSchedule.tsx";
+
+// outline을 별도 컴포넌트로 분리하여 ScheduleTable 리렌더링 방지
+// 이 컴포넌트만 Context를 구독하므로, ScheduleTable은 리렌더링되지 않음
+const TableOutline = React.memo(({ tableId }: { tableId: string }) => {
+  const activeTableId = useActiveTableId();
+  const isActiveTable = activeTableId === tableId;
+  
+  if (!isActiveTable) return null;
+  
+  return (
+    <Box
+      position="absolute"
+      inset="0"
+      outline="5px dashed"
+      outlineColor="blue.300"
+      pointerEvents="none"
+      zIndex={999}
+    />
+  );
+});
+TableOutline.displayName = 'TableOutline';
 
 interface Props {
   tableId: string;
@@ -32,9 +53,6 @@ const TIMES = [
 ] as const;
 
 const ScheduleTable = ({ tableId, schedules, onScheduleTimeClick, onDeleteButtonClick }: Props) => {
-
-  const dndContext = useDndContext();
-
   const colorMap = useMemo(() => {
     const lectures = [...new Set(schedules.map(({ lecture }) => lecture.id))];
     const colors = ["#fdd", "#ffd", "#dff", "#ddf", "#fdf", "#dfd"];
@@ -45,22 +63,9 @@ const ScheduleTable = ({ tableId, schedules, onScheduleTimeClick, onDeleteButton
     return colorMap.get(lectureId) || '#fdd';
   }, [colorMap]);
 
-  const getActiveTableId = () => {
-    const activeId = dndContext.active?.id;
-    if (activeId) {
-      return String(activeId).split(":")[0];
-    }
-    return null;
-  }
-
-  const activeTableId = getActiveTableId();
-
   return (
-    <Box
-      position="relative"
-      outline={activeTableId === tableId ? "5px dashed" : undefined}
-      outlineColor="blue.300"
-    >
+    <Box position="relative">
+      <TableOutline tableId={tableId} />
       <Grid
         templateColumns={`120px repeat(${DAY_LABELS.length}, ${CellSize.WIDTH}px)`}
         templateRows={`40px repeat(${TIMES.length}, ${CellSize.HEIGHT}px)`}
@@ -110,10 +115,11 @@ const ScheduleTable = ({ tableId, schedules, onScheduleTimeClick, onDeleteButton
 
       {schedules.map((schedule, index) => (
         <DraggableSchedule
-          key={`${schedule.lecture.id}-${index}`}
+          key={`${tableId}:${index}:${schedule.lecture.id}:${schedule.day}:${schedule.range[0]}`}
           id={`${tableId}:${index}`}
           data={schedule}
           bg={getColor(schedule.lecture.id)}
+          tableId={tableId}
           onDeleteButtonClick={() => onDeleteButtonClick?.({
             day: schedule.day,
             time: schedule.range[0],
@@ -124,6 +130,8 @@ const ScheduleTable = ({ tableId, schedules, onScheduleTimeClick, onDeleteButton
   );
 };
 
+// React.memo를 사용하되, activeTableId는 Context에서 직접 읽으므로 비교 함수에 포함하지 않음
+// activeTableId 변경 시 해당 테이블만 리렌더링됨
 export default React.memo(ScheduleTable, (prevProps, nextProps) => {
   // schedules 배열의 얕은 비교
   if (prevProps.schedules.length !== nextProps.schedules.length) return false;
