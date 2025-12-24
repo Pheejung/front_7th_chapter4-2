@@ -14,8 +14,7 @@ interface Props {
 }
 
 // tableId는 React.memo 비교 함수(아래)에서 사용되므로 Props에 필요
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const DraggableScheduleInner = ({ id, data, bg, tableId, onDeleteButtonClick }: Props) => {
+const DraggableScheduleInner = ({ id, data, bg, tableId: _tableId, onDeleteButtonClick }: Props) => {
   const { day, range, room, lecture } = data;
   const { attributes, setNodeRef, listeners, transform, isDragging } = useDraggable({ id });
   
