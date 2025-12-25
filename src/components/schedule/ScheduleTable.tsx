@@ -1,19 +1,13 @@
-import {
-  Box,
-  Flex,
-  Grid,
-  GridItem,
-  Text,
-} from "@chakra-ui/react";
-import { CellSize, DAY_LABELS, 분 } from "../../constants.ts";
-import { Schedule } from "../../types.ts";
-import { fill2, parseHnM } from "../../utils.ts";
-import React, { Fragment, useCallback, useMemo } from "react";
+import { Box } from "@chakra-ui/react";
+import React, { useCallback, useMemo, useEffect } from "react";
 import { useIsActiveTable } from "../../providers/ScheduleDndProvider.tsx";
+import { useScheduleTable } from "../../contexts/ScheduleContext.tsx";
 import DraggableSchedule from "./DraggableSchedule.tsx";
+import ScheduleTableLayout, { registerClickHandler, unregisterClickHandler } from "./ScheduleTableLayout.tsx";
+
+const COLORS = ["#fdd", "#ffd", "#dff", "#ddf", "#fdf", "#dfd"] as const;
 
 // outline을 별도 컴포넌트로 분리하여 ScheduleTable 리렌더링 방지
-// useIsActiveTable을 사용하여 해당 테이블이 활성화되어 있을 때만 리렌더링
 const TableOutline = React.memo(({ tableId }: { tableId: string }) => {
   const isActiveTable = useIsActiveTable(tableId);
   
@@ -30,119 +24,95 @@ const TableOutline = React.memo(({ tableId }: { tableId: string }) => {
     />
   );
 }, (prevProps, nextProps) => {
-  // tableId가 같으면 리렌더링 방지
-  // useIsActiveTable 내부에서 useMemo를 사용하므로 값이 변경되지 않으면 리렌더링되지 않음
   return prevProps.tableId === nextProps.tableId;
 });
 TableOutline.displayName = 'TableOutline';
 
+
 interface Props {
   tableId: string;
-  schedules: Schedule[];
   onScheduleTimeClick?: (timeInfo: { day: string, time: number }) => void;
   onDeleteButtonClick?: (timeInfo: { day: string, time: number }) => void;
 }
 
-const TIMES = [
-  ...Array(18)
-    .fill(0)
-    .map((v, k) => v + k * 30 * 분)
-    .map((v) => `${parseHnM(v)}~${parseHnM(v + 30 * 분)}`),
+// ScheduleTable - schedules를 useScheduleTable로 직접 가져옴
+const ScheduleTable = ({ tableId, onScheduleTimeClick, onDeleteButtonClick }: Props) => {
+  // schedules를 useScheduleTable로 직접 가져와서 해당 테이블만 구독
+  const schedules = useScheduleTable(tableId);
+  
+  // 콜백을 ref로 저장하여 안정화 - 콜백이 변경되어도 리렌더링되지 않도록
+  const onScheduleTimeClickRef = React.useRef(onScheduleTimeClick);
+  const onDeleteButtonClickRef = React.useRef(onDeleteButtonClick);
+  
+  React.useEffect(() => {
+    onScheduleTimeClickRef.current = onScheduleTimeClick;
+    onDeleteButtonClickRef.current = onDeleteButtonClick;
+  }, [onScheduleTimeClick, onDeleteButtonClick]);
 
-  ...Array(6)
-    .fill(18 * 30 * 분)
-    .map((v, k) => v + k * 55 * 분)
-    .map((v) => `${parseHnM(v)}~${parseHnM(v + 50 * 분)}`),
-] as const;
+  // 클릭 핸들러를 레지스트리에 등록/해제
+  useEffect(() => {
+    if (onScheduleTimeClickRef.current) {
+      registerClickHandler(tableId, (day: string, timeIndex: number) => {
+        onScheduleTimeClickRef.current?.({ day, time: timeIndex + 1 });
+      });
+    }
+    return () => {
+      unregisterClickHandler(tableId);
+    };
+  }, [tableId]);
 
-const ScheduleTable = ({ tableId, schedules, onScheduleTimeClick, onDeleteButtonClick }: Props) => {
-  const colorMap = useMemo(() => {
-    const lectures = [...new Set(schedules.map(({ lecture }) => lecture.id))];
-    const colors = ["#fdd", "#ffd", "#dff", "#ddf", "#fdf", "#dfd"];
-    return new Map(lectures.map((lectureId, index) => [lectureId, colors[index % colors.length]]));
+  // colorMap을 schedules의 lecture.id만 추적하도록 최적화
+  const lectureIdsStr = useMemo(() => {
+    const ids = new Set(schedules.map(({ lecture }) => lecture.id));
+    return Array.from(ids).sort().join(',');
   }, [schedules]);
+  
+  const colorMap = useMemo(() => {
+    const uniqueLectures = lectureIdsStr ? lectureIdsStr.split(',') : [];
+    return new Map(uniqueLectures.map((lectureId, index) => [lectureId, COLORS[index % COLORS.length]]));
+  }, [lectureIdsStr]);
 
   const getColor = useCallback((lectureId: string): string => {
     return colorMap.get(lectureId) || '#fdd';
   }, [colorMap]);
 
-  return (
-    <Box position="relative">
-      <TableOutline tableId={tableId} />
-      <Grid
-        templateColumns={`120px repeat(${DAY_LABELS.length}, ${CellSize.WIDTH}px)`}
-        templateRows={`40px repeat(${TIMES.length}, ${CellSize.HEIGHT}px)`}
-        bg="white"
-        fontSize="sm"
-        textAlign="center"
-        outline="1px solid"
-        outlineColor="gray.300"
-      >
-        <GridItem key="교시" borderColor="gray.300" bg="gray.100">
-          <Flex justifyContent="center" alignItems="center" h="full" w="full">
-            <Text fontWeight="bold">교시</Text>
-          </Flex>
-        </GridItem>
-        {DAY_LABELS.map((day) => (
-          <GridItem key={day} borderLeft="1px" borderColor="gray.300" bg="gray.100">
-            <Flex justifyContent="center" alignItems="center" h="full">
-              <Text fontWeight="bold">{day}</Text>
-            </Flex>
-          </GridItem>
-        ))}
-        {TIMES.map((time, timeIndex) => (
-          <Fragment key={`시간-${timeIndex + 1}`}>
-            <GridItem
-              borderTop="1px solid"
-              borderColor="gray.300"
-              bg={timeIndex > 17 ? 'gray.200' : 'gray.100'}
-            >
-              <Flex justifyContent="center" alignItems="center" h="full">
-                <Text fontSize="xs">{fill2(timeIndex + 1)} ({time})</Text>
-              </Flex>
-            </GridItem>
-            {DAY_LABELS.map((day) => (
-              <GridItem
-                key={`${day}-${timeIndex + 2}`}
-                borderWidth="1px 0 0 1px"
-                borderColor="gray.300"
-                bg={timeIndex > 17 ? 'gray.100' : 'white'}
-                cursor="pointer"
-                _hover={{ bg: 'yellow.100' }}
-                onClick={() => onScheduleTimeClick?.({ day, time: timeIndex + 1 })}
-              />
-            ))}
-          </Fragment>
-        ))}
-      </Grid>
+  // onDeleteButtonClick을 안정화하여 매번 새로 생성되지 않도록
+  const stableOnDeleteButtonClick = useCallback((day: string, time: number) => {
+    onDeleteButtonClickRef.current?.({ day, time });
+  }, []);
 
-      {schedules.map((schedule, index) => (
+  // DraggableSchedule 목록을 메모이제이션
+  const draggableSchedules = useMemo(() => {
+    return schedules.map((schedule, index) => {
+      const handleDelete = () => {
+        stableOnDeleteButtonClick(schedule.day, schedule.range[0]);
+      };
+      
+      return (
         <DraggableSchedule
           key={`${tableId}:${index}:${schedule.lecture.id}:${schedule.day}:${schedule.range[0]}`}
           id={`${tableId}:${index}`}
           data={schedule}
           bg={getColor(schedule.lecture.id)}
           tableId={tableId}
-          onDeleteButtonClick={() => onDeleteButtonClick?.({
-            day: schedule.day,
-            time: schedule.range[0],
-          })}
+          onDeleteButtonClick={handleDelete}
         />
-      ))}
+      );
+    });
+  }, [schedules, tableId, getColor, stableOnDeleteButtonClick]);
+
+  return (
+    <Box position="relative">
+      <TableOutline tableId={tableId} />
+      <ScheduleTableLayout tableId={tableId} />
+      {draggableSchedules}
     </Box>
   );
 };
 
-// React.memo를 사용하되, activeTableId는 Context에서 직접 읽으므로 비교 함수에 포함하지 않음
-// activeTableId 변경 시 해당 테이블만 리렌더링됨
+// React.memo를 사용하되, schedules는 내부에서 직접 구독하므로 props에서 제거
+// 콜백은 ref로 저장되므로 비교하지 않음 - 콜백 변경 시에도 리렌더링되지 않음
 export default React.memo(ScheduleTable, (prevProps, nextProps) => {
-  // schedules 배열의 얕은 비교
-  if (prevProps.schedules.length !== nextProps.schedules.length) return false;
-  for (let i = 0; i < prevProps.schedules.length; i++) {
-    if (prevProps.schedules[i] !== nextProps.schedules[i]) return false;
-  }
-  return prevProps.tableId === nextProps.tableId &&
-         prevProps.onScheduleTimeClick === nextProps.onScheduleTimeClick &&
-         prevProps.onDeleteButtonClick === nextProps.onDeleteButtonClick;
+  // tableId만 비교
+  return prevProps.tableId === nextProps.tableId;
 });
-

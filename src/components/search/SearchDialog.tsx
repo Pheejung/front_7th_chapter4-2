@@ -30,20 +30,12 @@ import {
   Wrap,
 } from "@chakra-ui/react";
 import { useScheduleSetAction } from "../../contexts/ScheduleContext.tsx";
+import { useSearchDialog } from "../../contexts/SearchDialogContext.tsx";
 import { Lecture } from "../../types.ts";
 import { parseSchedule } from "../../utils.ts";
 import { DAY_LABELS } from "../../constants.ts";
 import { useLectures } from "../../hooks/useLectures.ts";
 import { useFilteredLectures } from "../../hooks/useFilteredLectures.ts";
-
-interface Props {
-  searchInfo: {
-    tableId: string;
-    day?: string;
-    time?: number;
-  } | null;
-  onClose: () => void;
-}
 
 interface SearchOption {
   query?: string,
@@ -448,7 +440,12 @@ const ResultsTable = React.memo(({
 ResultsTable.displayName = 'ResultsTable';
 
 // TODO: 이 컴포넌트에서 불필요한 연산이 발생하지 않도록 다양한 방식으로 시도해주세요.
-const SearchDialog = ({ searchInfo, onClose }: Props) => {
+const SearchDialog = () => {
+  const { searchInfo, setSearchInfo } = useSearchDialog();
+  
+  const onClose = useCallback(() => {
+    setSearchInfo(null);
+  }, [setSearchInfo]);
   // setSchedulesMap만 필요하므로 useScheduleSetAction 사용하여 불필요한 리렌더링 방지
   const setSchedulesMap = useScheduleSetAction();
   const { lectures } = useLectures();
@@ -642,22 +639,6 @@ const SearchDialog = ({ searchInfo, onClose }: Props) => {
   );
 };
 
-// props 비교 함수를 추가하여 불필요한 리렌더링 방지
-export default React.memo(SearchDialog, (prevProps, nextProps) => {
-  // searchInfo가 null이면 같다고 간주
-  if (!prevProps.searchInfo && !nextProps.searchInfo) {
-    return prevProps.onClose === nextProps.onClose;
-  }
-  
-  // 둘 중 하나만 null이면 다름
-  if (!prevProps.searchInfo || !nextProps.searchInfo) {
-    return false;
-  }
-  
-  // searchInfo의 속성들을 비교
-  return prevProps.searchInfo.tableId === nextProps.searchInfo.tableId &&
-         prevProps.searchInfo.day === nextProps.searchInfo.day &&
-         prevProps.searchInfo.time === nextProps.searchInfo.time &&
-         prevProps.onClose === nextProps.onClose;
-});
+// Context를 구독하되, searchInfo가 변경될 때만 리렌더링
+export default React.memo(SearchDialog);
 

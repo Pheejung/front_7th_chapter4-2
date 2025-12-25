@@ -50,7 +50,6 @@ function createSnapModifier(): Modifier {
 const modifiers = [createSnapModifier()]
 
 const ScheduleDndProvider = ({ children }: PropsWithChildren) => {
-  // setSchedulesMap만 필요하므로 별도 Context 사용하여 불필요한 리렌더링 방지
   const setSchedulesMap = useScheduleSetAction();
   const [activeTableId, setActiveTableId] = useState<string | null>(null);
   
@@ -118,6 +117,8 @@ const ScheduleDndProvider = ({ children }: PropsWithChildren) => {
         return updatedSchedule; // 변경된 스케줄만 새 객체
       });
 
+      // memoizedSetSchedulesMap에서 최적화가 제대로 동작하도록
+      // 변경된 테이블만 새 배열로 전달하고, 다른 테이블은 이전 참조 유지
       return {
         ...prev,
         [tableId]: updatedSchedules,
