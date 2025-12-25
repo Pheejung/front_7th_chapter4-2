@@ -1,9 +1,9 @@
 import { Button, ButtonGroup, Flex, Heading, Stack } from "@chakra-ui/react";
 import ScheduleTable from "./ScheduleTable.tsx";
-import { useScheduleSetAction, useScheduleTableKeys, useScheduleTable } from "./ScheduleContext.tsx";
-import SearchDialog from "./SearchDialog.tsx";
+import { useScheduleSetAction, useScheduleTableKeys, useScheduleTable } from "../../contexts/ScheduleContext.tsx";
+import SearchDialog from "../search/SearchDialog.tsx";
 import React, { useCallback, useMemo, useState } from "react";
-import { Schedule } from "./types.ts";
+import { Schedule } from "../../types.ts";
 
 export const ScheduleTables = () => {
   const tableKeys = useScheduleTableKeys();
@@ -92,3 +92,4 @@ export const ScheduleTables = () => {
 }
 
 export default React.memo(ScheduleTables);
+

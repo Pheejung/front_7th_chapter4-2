@@ -1,7 +1,7 @@
 import { DndContext, Modifier, PointerSensor, useSensor, useSensors, DragEndEvent, DragStartEvent } from "@dnd-kit/core";
 import React, { PropsWithChildren, useCallback, useMemo, useState, useRef } from "react";
-import { CellSize, DAY_LABELS } from "./constants.ts";
-import { useScheduleSetAction } from "./ScheduleContext.tsx";
+import { CellSize, DAY_LABELS } from "../constants.ts";
+import { useScheduleSetAction } from "../contexts/ScheduleContext.tsx";
 
 // 드래그 중인 테이블 ID를 관리하는 Context
 const ActiveTableIdContext = React.createContext<string | null>(null);
@@ -146,3 +146,4 @@ const ScheduleDndProvider = ({ children }: PropsWithChildren) => {
 }
 
 export default React.memo(ScheduleDndProvider);
+

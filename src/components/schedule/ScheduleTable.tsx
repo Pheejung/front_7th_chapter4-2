@@ -5,11 +5,11 @@ import {
   GridItem,
   Text,
 } from "@chakra-ui/react";
-import { CellSize, DAY_LABELS, 분 } from "./constants.ts";
-import { Schedule } from "./types.ts";
-import { fill2, parseHnM } from "./utils.ts";
+import { CellSize, DAY_LABELS, 분 } from "../../constants.ts";
+import { Schedule } from "../../types.ts";
+import { fill2, parseHnM } from "../../utils.ts";
 import React, { Fragment, useCallback, useMemo } from "react";
-import { useIsActiveTable } from "./ScheduleDndProvider.tsx";
+import { useIsActiveTable } from "../../providers/ScheduleDndProvider.tsx";
 import DraggableSchedule from "./DraggableSchedule.tsx";
 
 // outline을 별도 컴포넌트로 분리하여 ScheduleTable 리렌더링 방지
@@ -145,3 +145,4 @@ export default React.memo(ScheduleTable, (prevProps, nextProps) => {
          prevProps.onScheduleTimeClick === nextProps.onScheduleTimeClick &&
          prevProps.onDeleteButtonClick === nextProps.onDeleteButtonClick;
 });
+

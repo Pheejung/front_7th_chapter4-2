@@ -2,8 +2,8 @@ import React, { useMemo } from "react";
 import { Box, Button, Popover, PopoverArrow, PopoverBody, PopoverCloseButton, PopoverContent, PopoverTrigger, Text } from "@chakra-ui/react";
 import { CSS } from "@dnd-kit/utilities";
 import { useDraggable } from "@dnd-kit/core";
-import { CellSize, DAY_LABELS } from "./constants.ts";
-import { Schedule } from "./types.ts";
+import { CellSize, DAY_LABELS } from "../../constants.ts";
+import { Schedule } from "../../types.ts";
 
 interface Props {
   id: string;
@@ -90,3 +90,4 @@ export default React.memo(DraggableScheduleInner, (prev, next) => {
   
   return true;
 });
+

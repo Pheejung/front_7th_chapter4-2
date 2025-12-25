@@ -29,12 +29,12 @@ import {
   VStack,
   Wrap,
 } from "@chakra-ui/react";
-import { useScheduleSetAction } from "./ScheduleContext.tsx";
-import { Lecture } from "./types.ts";
-import { parseSchedule } from "./utils.ts";
-import { DAY_LABELS } from "./constants.ts";
-import { useLectures } from "./hooks/useLectures.ts";
-import { useFilteredLectures } from "./hooks/useFilteredLectures.ts";
+import { useScheduleSetAction } from "../../contexts/ScheduleContext.tsx";
+import { Lecture } from "../../types.ts";
+import { parseSchedule } from "../../utils.ts";
+import { DAY_LABELS } from "../../constants.ts";
+import { useLectures } from "../../hooks/useLectures.ts";
+import { useFilteredLectures } from "../../hooks/useFilteredLectures.ts";
 
 interface Props {
   searchInfo: {
@@ -660,3 +660,4 @@ export default React.memo(SearchDialog, (prevProps, nextProps) => {
          prevProps.searchInfo.time === nextProps.searchInfo.time &&
          prevProps.onClose === nextProps.onClose;
 });
+

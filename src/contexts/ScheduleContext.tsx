@@ -1,6 +1,6 @@
 import React, { createContext, PropsWithChildren, useContext, useReducer, useMemo, useCallback, useRef } from "react";
-import { Schedule } from "./types.ts";
-import dummyScheduleMap from "./dummyScheduleMap.ts";
+import { Schedule } from "../types.ts";
+import dummyScheduleMap from "../dummyScheduleMap.ts";
 
 interface ScheduleContextType {
   schedulesMap: Record<string, Schedule[]>;
@@ -110,3 +110,4 @@ export const ScheduleProvider = ({ children }: PropsWithChildren) => {
     </ScheduleContext.Provider>
   );
 };
+
