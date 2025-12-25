@@ -1,4 +1,4 @@
-import React, { createContext, PropsWithChildren, useContext, useReducer, useMemo, useCallback } from "react";
+import React, { createContext, PropsWithChildren, useContext, useReducer, useMemo, useCallback, useRef } from "react";
 import { Schedule } from "./types.ts";
 import dummyScheduleMap from "./dummyScheduleMap.ts";
 
@@ -53,6 +53,35 @@ export const useScheduleContext = () => {
     throw new Error('useSchedule must be used within a ScheduleProvider');
   }
   return context;
+};
+
+// 특정 테이블의 스케줄만 구독하는 hook
+export const useScheduleTable = (tableId: string) => {
+  const { schedulesMap } = useScheduleContext();
+  return schedulesMap[tableId] || [];
+};
+
+// 테이블 키 목록만 구독하는 hook
+// schedulesMap의 키 목록만 추적하여 불필요한 리렌더링 방지
+export const useScheduleTableKeys = () => {
+  const { schedulesMap } = useScheduleContext();
+  const keysRef = useRef<string[]>([]);
+  const keysStrRef = useRef<string>('');
+  
+  return useMemo(() => {
+    const currentKeys = Object.keys(schedulesMap);
+    const currentKeysStr = currentKeys.join(',');
+    
+    // 키 목록이 변경되지 않았으면 이전 배열 반환
+    if (currentKeysStr === keysStrRef.current) {
+      return keysRef.current;
+    }
+    
+    // 키 목록이 변경되었으면 새 배열 반환
+    keysRef.current = currentKeys;
+    keysStrRef.current = currentKeysStr;
+    return currentKeys;
+  }, [schedulesMap]);
 };
 
 export const ScheduleProvider = ({ children }: PropsWithChildren) => {

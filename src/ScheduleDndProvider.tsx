@@ -1,5 +1,5 @@
 import { DndContext, Modifier, PointerSensor, useSensor, useSensors, DragEndEvent, DragStartEvent } from "@dnd-kit/core";
-import React, { PropsWithChildren, useCallback, useMemo, useState } from "react";
+import React, { PropsWithChildren, useCallback, useMemo, useState, useRef, useEffect } from "react";
 import { CellSize, DAY_LABELS } from "./constants.ts";
 import { useScheduleSetAction } from "./ScheduleContext.tsx";
 
@@ -7,6 +7,22 @@ import { useScheduleSetAction } from "./ScheduleContext.tsx";
 const ActiveTableIdContext = React.createContext<string | null>(null);
 
 export const useActiveTableId = () => React.useContext(ActiveTableIdContext);
+
+// 특정 테이블이 활성화되어 있는지 확인하는 hook
+// Context를 구독하되, 값이 변경되지 않으면 리렌더링을 방지하기 위해 useRef 사용
+export const useIsActiveTable = (tableId: string) => {
+  const activeTableId = useActiveTableId();
+  const prevValueRef = useRef<boolean>(activeTableId === tableId);
+  const prevActiveTableIdRef = useRef<string | null>(activeTableId);
+  
+  // activeTableId가 변경되었을 때만 값 업데이트
+  if (prevActiveTableIdRef.current !== activeTableId) {
+    prevActiveTableIdRef.current = activeTableId;
+    prevValueRef.current = activeTableId === tableId;
+  }
+  
+  return prevValueRef.current;
+};
 
 function createSnapModifier(): Modifier {
   return ({ transform, containerNodeRect, draggingNodeRect }) => {

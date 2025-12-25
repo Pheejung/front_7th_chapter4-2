@@ -12,10 +12,11 @@ interface SearchOption {
 }
 
 export const useFilteredLectures = (lectures: Lecture[], searchOptions: SearchOption) => {
-  // searchOptions 객체 전체를 의존성으로 사용
-  // setSearchOptions(prev => ({ ...prev, [field]: value }))는 새 객체를 생성하므로
-  // searchOptions의 참조가 변경되어 useMemo가 재계산됨
+  // searchOptions의 개별 필드를 의존성으로 사용하여
+  // searchOptions 객체의 참조가 변경되어도 실제 값이 같으면 재계산하지 않음
+  const { query, credits, grades, days, times, majors } = searchOptions;
+  
   return useMemo(() => {
     return filterLectures(lectures, searchOptions);
-  }, [lectures, searchOptions]);
+  }, [lectures, query, credits, grades, days, times, majors]);
 };

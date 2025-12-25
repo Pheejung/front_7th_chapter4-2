@@ -9,14 +9,13 @@ import { CellSize, DAY_LABELS, 분 } from "./constants.ts";
 import { Schedule } from "./types.ts";
 import { fill2, parseHnM } from "./utils.ts";
 import React, { Fragment, useCallback, useMemo } from "react";
-import { useActiveTableId } from "./ScheduleDndProvider.tsx";
+import { useIsActiveTable } from "./ScheduleDndProvider.tsx";
 import DraggableSchedule from "./DraggableSchedule.tsx";
 
 // outline을 별도 컴포넌트로 분리하여 ScheduleTable 리렌더링 방지
-// 이 컴포넌트만 Context를 구독하므로, ScheduleTable은 리렌더링되지 않음
+// useIsActiveTable을 사용하여 해당 테이블이 활성화되어 있을 때만 리렌더링
 const TableOutline = React.memo(({ tableId }: { tableId: string }) => {
-  const activeTableId = useActiveTableId();
-  const isActiveTable = activeTableId === tableId;
+  const isActiveTable = useIsActiveTable(tableId);
   
   if (!isActiveTable) return null;
   
@@ -30,6 +29,10 @@ const TableOutline = React.memo(({ tableId }: { tableId: string }) => {
       zIndex={999}
     />
   );
+}, (prevProps, nextProps) => {
+  // tableId가 같으면 리렌더링 방지
+  // useIsActiveTable 내부에서 useMemo를 사용하므로 값이 변경되지 않으면 리렌더링되지 않음
+  return prevProps.tableId === nextProps.tableId;
 });
 TableOutline.displayName = 'TableOutline';
 
