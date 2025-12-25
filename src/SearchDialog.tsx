@@ -81,7 +81,8 @@ const TIME_SLOTS = [
   { id: 24, label: "22:35~23:25" },
 ];
 
-const PAGE_SIZE = 100;
+const INITIAL_PAGE_SIZE = 100; // 초기 렌더링 크기
+const PAGE_SIZE_INCREMENT = 40; // 스크롤 시 추가로 로드할 크기
 
 // 검색 필터 컴포넌트들을 분리하여 각각 메모이제이션
 const QueryInput = React.memo(({ value, onChange }: { value: string; onChange: (value: string) => void }) => {
@@ -247,7 +248,11 @@ const LectureRow = React.memo(({ lecture, onAddSchedule }: { lecture: Lecture; o
   const scheduleHtml = React.useMemo(() => ({ __html: lecture.schedule || '' }), [lecture.schedule]);
 
   return (
-    <Tr style={{ contain: 'layout style paint' }}>
+    <Tr style={{ 
+      contain: 'layout style paint',
+      willChange: 'transform',
+      backfaceVisibility: 'hidden'
+    }}>
       <Td width="100px">{lecture.id}</Td>
       <Td width="50px">{lecture.grade}</Td>
       <Td width="200px">{lecture.title}</Td>
@@ -273,7 +278,8 @@ const ResultsTable = React.memo(({
   onAddSchedule,
   loaderWrapperRef,
   loaderRef,
-  onLoadMore
+  onLoadMore,
+  hasMore
 }: { 
   visibleLectures: Array<{ lecture: Lecture; index: number }>;
   filteredCount: number;
@@ -281,12 +287,19 @@ const ResultsTable = React.memo(({
   loaderWrapperRef: React.RefObject<HTMLDivElement | null>;
   loaderRef: React.RefObject<HTMLDivElement | null>;
   onLoadMore: () => void;
+  hasMore: boolean;
 }) => {
   // IntersectionObserver를 ResultsTable 내부로 이동
-  // throttle을 사용하여 스크롤 성능 최적화
+  // 성능 최적화를 위해 requestIdleCallback과 requestAnimationFrame 조합 사용
   const loadingRef = React.useRef(false);
+  const scheduledRef = React.useRef(false);
   
   React.useEffect(() => {
+    // 더 로드할 항목이 없으면 observer 설정하지 않음
+    if (!hasMore) {
+      return;
+    }
+
     const $loader = loaderRef.current;
     const $loaderWrapper = loaderWrapperRef.current;
 
@@ -296,49 +309,74 @@ const ResultsTable = React.memo(({
 
     let observer: IntersectionObserver | null = null;
     let rafId: number | null = null;
+    let idleId: number | null = null;
 
-    const timeoutId = setTimeout(() => {
-      const currentLoader = loaderRef.current;
-      const currentWrapper = loaderWrapperRef.current;
-      
-      if (!currentLoader || !currentWrapper) {
-        return;
-      }
-
-      observer = new IntersectionObserver(
-        entries => {
-          if (entries[0].isIntersecting && !loadingRef.current) {
-            // requestAnimationFrame으로 스크롤 이벤트 최적화
-            if (rafId !== null) {
-              cancelAnimationFrame(rafId);
+    // observer를 즉시 설정 (timeout 제거)
+    observer = new IntersectionObserver(
+      entries => {
+        if (entries[0].isIntersecting && !loadingRef.current && !scheduledRef.current) {
+          scheduledRef.current = true;
+          
+          // requestIdleCallback을 사용하여 브라우저가 idle 상태일 때 로드
+          const scheduleLoad = () => {
+            if (typeof requestIdleCallback !== 'undefined') {
+              idleId = requestIdleCallback(() => {
+                if (!loadingRef.current) {
+                  loadingRef.current = true;
+                  onLoadMore();
+                  setTimeout(() => {
+                    loadingRef.current = false;
+                    scheduledRef.current = false;
+                  }, 300);
+                }
+              }, { timeout: 100 });
+            } else {
+              // requestIdleCallback이 없으면 requestAnimationFrame 사용
+              rafId = requestAnimationFrame(() => {
+                if (!loadingRef.current) {
+                  loadingRef.current = true;
+                  onLoadMore();
+                  setTimeout(() => {
+                    loadingRef.current = false;
+                    scheduledRef.current = false;
+                  }, 300);
+                }
+              });
             }
-            
-            rafId = requestAnimationFrame(() => {
-              loadingRef.current = true;
-              onLoadMore();
-              // 다음 프레임에서 로딩 플래그 해제
-              setTimeout(() => {
-                loadingRef.current = false;
-              }, 200);
-            });
-          }
-        },
-        { threshold: 0, root: currentWrapper, rootMargin: '50px' } // rootMargin을 줄여서 더 빠르게 로드
-      );
+          };
 
-      observer.observe(currentLoader);
-    }, 50); // timeout을 줄여서 더 빠르게 초기화
+          // React 18의 startTransition 사용 (있으면)
+          if (typeof (React as any).startTransition === 'function') {
+            (React as any).startTransition(scheduleLoad);
+          } else {
+            scheduleLoad();
+          }
+        }
+      },
+      { 
+        threshold: 0, 
+        root: $loaderWrapper, 
+        // 90개 정도 보였을 때 로드하도록 rootMargin 조정
+        // 행 높이를 약 40px로 추정하면, 10개 행 = 400px 정도
+        // 하지만 너무 크면 조기 로드되므로 200px로 조정
+        rootMargin: '200px' 
+      }
+    );
+
+    observer.observe($loader);
 
     return () => {
-      clearTimeout(timeoutId);
       if (rafId !== null) {
         cancelAnimationFrame(rafId);
+      }
+      if (idleId !== null && typeof cancelIdleCallback !== 'undefined') {
+        cancelIdleCallback(idleId);
       }
       if (observer) {
         observer.disconnect();
       }
     };
-  }, [loaderRef, loaderWrapperRef, onLoadMore, visibleLectures.length]);
+  }, [loaderRef, loaderWrapperRef, onLoadMore, hasMore]);
 
   return (
     <>
@@ -366,10 +404,17 @@ const ResultsTable = React.memo(({
           ref={loaderWrapperRef}
           style={{ 
             willChange: 'scroll-position',
-            contain: 'layout style paint'
+            contain: 'layout style paint',
+            transform: 'translateZ(0)',
+            backfaceVisibility: 'hidden',
+            WebkitOverflowScrolling: 'touch'
           }}
         >
-          <Table size="sm" variant="striped" style={{ tableLayout: 'fixed' }}>
+          <Table size="sm" variant="striped" style={{ 
+            tableLayout: 'fixed',
+            transform: 'translateZ(0)',
+            backfaceVisibility: 'hidden'
+          }}>
             <Tbody>
               {visibleLectures.map(({ lecture, index }) => (
                 <LectureRow 
@@ -380,7 +425,7 @@ const ResultsTable = React.memo(({
               ))}
             </Tbody>
           </Table>
-          <Box ref={loaderRef} h="20px"/>
+          {hasMore && <Box ref={loaderRef} h="50px" minH="50px"/>}
         </Box>
       </Box>
     </>
@@ -389,6 +434,7 @@ const ResultsTable = React.memo(({
   // visibleLectures 배열의 길이와 참조 비교
   if (prevProps.visibleLectures.length !== nextProps.visibleLectures.length) return false;
   if (prevProps.filteredCount !== nextProps.filteredCount) return false;
+  if (prevProps.hasMore !== nextProps.hasMore) return false;
   
   // 각 lecture의 참조 비교
   const lecturesChanged = prevProps.visibleLectures.some((item, index) => 
@@ -419,13 +465,32 @@ const SearchDialog = ({ searchInfo, onClose }: Props) => {
   });
 
   const filteredLectures = useFilteredLectures(lectures, searchOptions);
-  const lastPage = useMemo(() => Math.ceil(filteredLectures.length / PAGE_SIZE), [filteredLectures.length]);
+  
+  // 점진적 로드를 위한 visibleCount 계산
+  // 초기 100개, 이후 100개씩 추가
+  // filteredLectures.length를 초과하지 않도록 보장
+  const visibleCount = useMemo(() => {
+    let count: number;
+    if (page === 1) {
+      count = INITIAL_PAGE_SIZE; // 100개
+    } else {
+      count = INITIAL_PAGE_SIZE + (page - 1) * PAGE_SIZE_INCREMENT; // 100 + (page-1) * 100
+    }
+    // filteredLectures.length를 초과하지 않도록 제한
+    return Math.min(count, filteredLectures.length);
+  }, [page, filteredLectures.length]);
+  
+  // 더 로드할 항목이 있는지 확인
+  const hasMore = useMemo(() => {
+    return visibleCount < filteredLectures.length;
+  }, [visibleCount, filteredLectures.length]);
+  
   const visibleLectures = useMemo(() => 
-    filteredLectures.slice(0, page * PAGE_SIZE).map((lecture, index) => ({
+    filteredLectures.slice(0, visibleCount).map((lecture, index) => ({
       lecture,
-      index: index + (page - 1) * PAGE_SIZE, // 전체 filteredLectures에서의 인덱스
+      index,
     })), 
-    [filteredLectures, page]
+    [filteredLectures, visibleCount]
   );
   
   // allMajors를 메모이제이션하여 lectures가 변경되지 않으면 재계산하지 않음
@@ -479,17 +544,29 @@ const SearchDialog = ({ searchInfo, onClose }: Props) => {
   }, [searchInfo, setSchedulesMap, onClose]);
 
   // 무한 스크롤을 위한 로드 더보기 핸들러
-  // requestAnimationFrame으로 최적화
+  // React 18의 startTransition 사용하여 우선순위 낮춤
   const handleLoadMore = useCallback(() => {
-    requestAnimationFrame(() => {
+    if (!hasMore) return;
+    
+    const loadMore = () => {
       setPage(prevPage => {
-        if (prevPage < lastPage) {
-          return Math.min(lastPage, prevPage + 1);
-        }
-        return prevPage;
+        // hasMore가 true일 때만 페이지 증가
+        // visibleCount가 filteredLectures.length를 초과하지 않도록 보장됨
+        return prevPage + 1;
       });
-    });
-  }, [lastPage]);
+    };
+    
+    if (typeof (React as any).startTransition === 'function') {
+      (React as any).startTransition(loadMore);
+    } else {
+      // requestIdleCallback을 사용하여 브라우저가 idle 상태일 때 로드
+      if (typeof requestIdleCallback !== 'undefined') {
+        requestIdleCallback(loadMore, { timeout: 100 });
+      } else {
+        requestAnimationFrame(loadMore);
+      }
+    }
+  }, [hasMore]);
 
   // searchInfo가 변경될 때만 검색 옵션 업데이트
   useEffect(() => {
@@ -556,6 +633,7 @@ const SearchDialog = ({ searchInfo, onClose }: Props) => {
               loaderWrapperRef={loaderWrapperRef}
               loaderRef={loaderRef}
               onLoadMore={handleLoadMore}
+              hasMore={hasMore}
             />
           </VStack>
         </ModalBody>
